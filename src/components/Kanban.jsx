@@ -53,7 +53,9 @@ export default function Kanban({ items, onUpdate, onEdit, onDelete }) {
   
   
   const columns = [
-    { key: 'lead', title: 'Lead', color: '#F59E0B' },
+    { key: 'contacted', title: 'Contacté', color: '#06B6D4' },
+    { key: 'replied', title: 'Répondu', color: '#14B8A6' },
+    { key: 'shared_value', title: 'Valeur Partagée', color: '#8B5CF6' },
     { key: 'relance_1', title: 'Relance 1', color: '#F97316' },
     { key: 'relance_2', title: 'Relance 2', color: '#F97316' },
     { key: 'relance_3', title: 'Relance 3', color: '#F97316' },
@@ -64,11 +66,7 @@ export default function Kanban({ items, onUpdate, onEdit, onDelete }) {
     { key: 'relance_8', title: 'Relance 8', color: '#F97316' },
     { key: 'relance_9', title: 'Relance 9', color: '#F97316' },
     { key: 'relance_10', title: 'Relance 10', color: '#F97316' },
-    { key: 'contacted', title: 'Contacté', color: '#06B6D4' },
-    { key: 'replied', title: 'Répondu', color: '#14B8A6' },
-    { key: 'value_shared', title: 'Valeur Partagée', color: '#8B5CF6' },
     { key: 'meeting_scheduled', title: 'RDV Planifié', color: '#EC4899' },
-    { key: 'prospect', title: 'Prospect', color: '#3B82F6' },
     { key: 'client', title: 'Client', color: '#10B981' },
     { key: 'inactive', title: 'Inactif', color: '#6B7280' },
   ]
@@ -166,7 +164,9 @@ export default function Kanban({ items, onUpdate, onEdit, onDelete }) {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      flex: 1
+                      flex: 1,
+                      minWidth: 0,
+                      maxWidth: '120px'
                     }}>{card.full_name}</div>
                   </div>
                   <div className="kanban-card-actions">
@@ -202,11 +202,32 @@ export default function Kanban({ items, onUpdate, onEdit, onDelete }) {
                   <StatusBadge status={card.status} />
                   {card.source && <SourceBadge source={card.source} />}
                 </div>
-                <div className="cell-clip muted small">{card.company}</div>
-                <div className="cell-clip small">{card.title}</div>
+                <div className="cell-clip muted small" style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  width: '100%'
+                }}>{card.company}</div>
+                <div className="cell-clip small" style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  width: '100%'
+                }}>{card.title}</div>
                 {card.location && (
-                  <div className="cell-clip tiny muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Icon name="map-pin" size={12} /> {card.location}
+                  <div className="cell-clip tiny muted" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 6,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    width: '100%'
+                  }}>
+                    <Icon name="map-pin" size={12} style={{ flexShrink: 0 }} /> 
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {card.location}
+                    </span>
                   </div>
                 )}
                 <div className="card-indicators">

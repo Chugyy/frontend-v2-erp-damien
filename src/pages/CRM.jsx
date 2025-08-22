@@ -55,18 +55,21 @@ export default function CRM() {
   const [view, setView] = useState('table')
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalContacts, setTotalContacts] = useState(0)
+  const [kanbanPage, setKanbanPage] = useState(1)
+  const [hasMoreKanban, setHasMoreKanban] = useState(true)
   const [selectedRows, setSelectedRows] = useState([])
   const [actionModalOpen, setActionModalOpen] = useState(false)
   const [searchTimeout, setSearchTimeout] = useState(null)
   const [isSearching, setIsSearching] = useState(false)
-  const [searchCache, setSearchCache] = useState(new Map())
+  const [paginationCache, setPaginationCache] = useState(new Map())
   const [filters, setFilters] = useState({
     statuses: [],
     sources: [],
     sortBy: 'created_at',
     sortOrder: 'desc'
   })
-  const itemsPerPage = 20
+  const itemsPerPage = 100
   const { loading, request } = useApi()
 
     const columns = [
@@ -99,15 +102,26 @@ export default function CRM() {
     }
     
     if (sourceFilter.length > 0) {
-      filtered = filtered.filter(contact => sourceFilter.includes(contact.source))
+      filtered = filtered.filter(contact => {
+        if (!contact.source) return false
+        return sourceFilter.some(filter => 
+          contact.source.toLowerCase() === filter.toLowerCase()
+        )
+      })
     }
     
     // Recherche textuelle
     if (searchTerm.trim()) {
+      const term = searchTerm.trim()
       filtered = filtered.filter(contact => 
-        contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.email?.toLowerCase().includes(searchTerm.toLowerCase())
+        contact.full_name?.includes(term) ||
+        contact.full_name?.toLowerCase().includes(term.toLowerCase()) ||
+        contact.company?.includes(term) ||
+        contact.company?.toLowerCase().includes(term.toLowerCase()) ||
+        contact.email?.includes(term) ||
+        contact.email?.toLowerCase().includes(term.toLowerCase()) ||
+        contact.source?.includes(term) ||
+        contact.source?.toLowerCase().includes(term.toLowerCase())
       )
     }
     
@@ -148,54 +162,39 @@ export default function CRM() {
     return filtered
   }, [filters.sortBy, filters.sortOrder])
 
-  // Helper pour clé de cache
-  const getSearchCacheKey = (searchTerm, statusFilter, sourceFilter) => {
-    return `${searchTerm}_${statusFilter.join(',')}_${sourceFilter.join(',')}`
+
+  const getPaginationCacheKey = (page, status, search) => {
+    return `page_${page}_status_${status || 'null'}_search_${search || ''}`
   }
 
-  // Vérifier si recherche déjà en cache et valide (< 5min)
-  const isSearchCached = useCallback((searchTerm, statusFilter, sourceFilter) => {
-    const key = getSearchCacheKey(searchTerm, statusFilter, sourceFilter)
-    const cached = searchCache.get(key)
-    
-    if (!cached) return false
-    
-    // Vérifier si cache expiré (5min = 300000ms)
-    const now = Date.now()
-    return (now - cached.timestamp) < 300000
-  }, [searchCache])
+  const isCacheValid = (timestamp) => {
+    return Date.now() - timestamp < 3600000 // 1h = 3600000ms
+  }
 
-  // Effet pour appliquer filtres + recherche différée serveur
+
+  // Effet simple : appliquer filtres ET faire recherche serveur si nécessaire
   useEffect(() => {
+    // 1. Filtrage local d'abord
     const filtered = localFilter(allContacts, search, filters.statuses, filters.sources)
     setFilteredLeads(filtered)
     
-    // Si aucun résultat avec recherche ET terme > 2 caractères
-    if (filtered.length === 0 && search.trim().length > 2) {
-      // Vérifier cache avant requête serveur
-      if (isSearchCached(search, filters.statuses, filters.sources)) {
-        return // Pas de requête, utiliser cache
-      }
-      
+    // 2. Recherche serveur si nécessaire (terme > 2 caractères ET pas de résultats locaux)
+    const hasSearch = search.trim().length > 2
+    const hasFilters = filters.statuses.length > 0 || filters.sources.length > 0
+    
+    if ((hasSearch || hasFilters) && filtered.length === 0) {
       if (searchTimeout) clearTimeout(searchTimeout)
       
       const timeoutId = setTimeout(async () => {
         setIsSearching(true)
         try {
           const serverResults = await contactsApi.searchContacts(search, 
-            filters.statuses.length > 0 ? filters.statuses[0] : null,
-            filters.sources.length > 0 ? filters.sources[0] : null
+            filters.statuses,
+            filters.sources
           )
           
-          // Mettre en cache le résultat (même si vide)
-          const cacheKey = getSearchCacheKey(search, filters.statuses, filters.sources)
-          setSearchCache(prev => new Map([
-            ...prev,
-            [cacheKey, { results: serverResults, timestamp: Date.now() }]
-          ]))
-          
           if (serverResults.length > 0) {
-            // Ajouter nouveaux résultats au cache local (éviter doublons)
+            // Ajouter nouveaux contacts au cache local
             setAllContacts(prev => {
               const existingIds = new Set(prev.map(c => c.contact_id))
               const newContacts = serverResults
@@ -206,16 +205,10 @@ export default function CRM() {
           }
         } catch (error) {
           console.error('Erreur recherche serveur:', error)
-          // Mettre en cache l'erreur aussi pour éviter répétitions
-          const cacheKey = getSearchCacheKey(search, filters.statuses, filters.sources)
-          setSearchCache(prev => new Map([
-            ...prev,
-            [cacheKey, { results: [], timestamp: Date.now() }]
-          ]))
         } finally {
           setIsSearching(false)
         }
-      }, 2000)
+      }, 1000)
       
       setSearchTimeout(timeoutId)
     }
@@ -223,19 +216,21 @@ export default function CRM() {
     return () => {
       if (searchTimeout) clearTimeout(searchTimeout)
     }
-  }, [search, filters, allContacts, localFilter, isSearchCached, searchTimeout])
+  }, [search, filters.statuses, filters.sources, allContacts, localFilter])
 
   const handleSearch = (value) => {
     setSearch(value)
     setCurrentPage(1)
+    setKanbanPage(1)
+    setHasMoreKanban(true)
+    // Reset pagination et recharger depuis le serveur
+    if (value.trim() === '') {
+      loadContacts(1)
+    }
   }
 
-  const paginatedLeads = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage
-    return filteredLeads.slice(start, start + itemsPerPage)
-  }, [filteredLeads, currentPage])
-
-  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage)
+  const paginatedLeads = filteredLeads
+  const totalPages = Math.ceil(totalContacts / itemsPerPage)
 
   const handleSaveLead = async (leadData) => {
     try {
@@ -250,8 +245,9 @@ export default function CRM() {
           'Création du contact...'
         )
       }
-      // Recharger les contacts après création/modification
-      await loadContacts()
+      // Invalider cache et recharger
+      setPaginationCache(new Map())
+      await loadContacts(currentPage, true)
     } catch (error) {
       console.error('Erreur sauvegarde contact:', error)
     }
@@ -265,9 +261,9 @@ export default function CRM() {
         'Mise à jour du statut...'
       )
       
-      // Mettre à jour l'état local
-      const updated = allContacts.map(c => c.contact_id === leadId ? { ...c, status: updatedLead.status, urls: generateUrls(c) } : c)
-      setAllContacts(updated)
+      // Invalider cache et recharger
+      setPaginationCache(new Map())
+      await loadContacts(currentPage, true)
     } catch (error) {
       console.error('Erreur mise à jour statut:', error)
     }
@@ -290,30 +286,77 @@ export default function CRM() {
         'Suppression du contact...'
       )
       
-      const updated = allContacts.filter(contact => contact.contact_id !== leadId)
-      setAllContacts(updated)
+      // Invalider cache et recharger
+      setPaginationCache(new Map())
+      await loadContacts(currentPage, true)
     } catch (error) {
       console.error('Erreur suppression contact:', error)
     }
   }
 
-  const loadContacts = useCallback(async () => {
+  const loadContacts = useCallback(async (page = currentPage, forceRefresh = false, isKanbanLoad = false) => {
+    const statusFilter = filters.statuses.length > 0 ? filters.statuses[0] : null
+    const searchTerm = search.trim() || null
+    const cacheKey = getPaginationCacheKey(page, statusFilter, searchTerm)
+    
+    // Vérifier cache 1h
+    if (!forceRefresh) {
+      const cached = paginationCache.get(cacheKey)
+      if (cached && isCacheValid(cached.timestamp)) {
+        setFilteredLeads(cached.contacts)
+        setTotalContacts(cached.total)
+        return
+      }
+    }
+    
     try {
       const data = await request(
-        () => contactsApi.getAll(), // Charger plus de contacts initialement
+        () => contactsApi.getAll(statusFilter, page, itemsPerPage, searchTerm),
         'Chargement des contacts...'
       )
       const contacts = data.contacts || []
-      setAllContacts(contacts.map(transformContactForDisplay))
+      const transformedContacts = contacts.map(transformContactForDisplay)
+      
+      setFilteredLeads(transformedContacts)
+      setTotalContacts(data.total || contacts.length)
+      
+      // Mise en cache pour 1h
+      setPaginationCache(prev => new Map([
+        ...prev,
+        [cacheKey, {
+          contacts: transformedContacts,
+          total: data.total || contacts.length,
+          timestamp: Date.now()
+        }]
+      ]))
+      
+      // Mise à jour du cache global pour éviter doublons
+      setAllContacts(prev => {
+        const existingIds = new Set(prev.map(c => c.contact_id))
+        const newContacts = transformedContacts.filter(c => !existingIds.has(c.contact_id))
+        return isKanbanLoad ? [...prev, ...newContacts] : [...prev, ...newContacts]
+      })
+      
+      // Pour Kanban : vérifier s'il y a plus de résultats
+      if (isKanbanLoad) {
+        setHasMoreKanban(transformedContacts.length === itemsPerPage)
+      }
     } catch (error) {
       console.error('Erreur chargement contacts:', error)
-      setAllContacts([])
+      setFilteredLeads([])
+      setTotalContacts(0)
     }
-  }, [request])
+  }, [request, currentPage, filters.statuses, itemsPerPage, search, paginationCache])
+
+  const loadMoreKanban = async () => {
+    const nextPage = kanbanPage + 1
+    await loadContacts(nextPage, false, true)
+    setKanbanPage(nextPage)
+  }
 
   useEffect(() => {
-    loadContacts()
-  }, [loadContacts]) // Charger une seule fois au montage
+    loadContacts(currentPage)
+  }, [loadContacts, currentPage, filters.statuses]) // Recharger à chaque changement de page ou statut
 
   const handleRowSelect = (rowId, checked) => {
     if (checked) {
@@ -340,14 +383,14 @@ export default function CRM() {
     if (!window.confirm(message)) return
     
     try {
-      // Appeler l'API bulk delete
       await request(
         () => contactsApi.bulkDelete(selectedRows),
         'Suppression des contacts...'
       )
       
-      // Recharger les données depuis le serveur
-      await loadContacts()
+      // Invalider cache et recharger
+      setPaginationCache(new Map())
+      await loadContacts(currentPage, true)
     } catch (error) {
       console.error('Erreur suppression contacts:', error)
     }
@@ -359,7 +402,6 @@ export default function CRM() {
     try {
       const selectedLeads = allContacts.filter(contact => selectedRows.includes(contact.contact_id))
       
-      // Appeler l'API bulk duplicate
       const duplicateData = {
         contact_ids: selectedRows,
         modifications: {
@@ -372,8 +414,9 @@ export default function CRM() {
         'Duplication des contacts...'
       )
       
-      // Recharger les données
-      await loadContacts()
+      // Invalider cache et recharger
+      setPaginationCache(new Map())
+      await loadContacts(currentPage, true)
     } catch (error) {
       console.error('Erreur duplication contacts:', error)
     }
@@ -405,7 +448,7 @@ export default function CRM() {
       <LoadingOverlay show={loading || isSearching} message={loading || (isSearching ? 'Recherche en cours...' : '')} />
       <Header
         title="CRM"
-        subtitle={`${filteredLeads.length} contacts trouvés ${isSearching ? '(recherche...)' : ''}`}
+        subtitle={`${totalContacts} contacts trouvés ${isSearching ? '(recherche...)' : ''}`}
         right={(
           <div className="header-actions">
             <Button 
@@ -467,7 +510,7 @@ export default function CRM() {
           <option value="lead">Lead</option>
           <option value="contacted">Contacted</option>
           <option value="replied">Replied</option>
-          <option value="value_shared">Value Shared</option>
+          <option value="shared_value">Value Shared</option>
           <option value="meeting_scheduled">Meeting Scheduled</option>
           <option value="prospect">Prospect</option>
           <option value="client">Client</option>
@@ -547,7 +590,7 @@ export default function CRM() {
                 ← Précédent
               </Button>
               <span className="page-info">
-                Page {currentPage} sur {totalPages} ({filteredLeads.length} résultats)
+                Page {currentPage} sur {totalPages} ({totalContacts} résultats)
               </span>
               <Button
                 disabled={currentPage === totalPages}
@@ -558,12 +601,25 @@ export default function CRM() {
             </div>
           </>
         ) : (
-          <Kanban 
-            items={filteredLeads} 
-            onUpdate={handleKanbanUpdate}
-            onEdit={handleKanbanEdit}
-            onDelete={handleKanbanDelete}
-          />
+          <>
+            {hasMoreKanban && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+                <Button 
+                  variant="subtle" 
+                  onClick={loadMoreKanban}
+                  disabled={loading}
+                >
+                  Charger plus de résultats
+                </Button>
+              </div>
+            )}
+            <Kanban 
+              items={filteredLeads} 
+              onUpdate={handleKanbanUpdate}
+              onEdit={handleKanbanEdit}
+              onDelete={handleKanbanDelete}
+            />
+          </>
         )}
       </div>
       <LeadModal

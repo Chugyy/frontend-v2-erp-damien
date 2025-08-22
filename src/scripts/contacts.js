@@ -3,9 +3,12 @@
 import api from './api.js';
 
 export const contacts = {
-  async getAll(status) {
-    const params = status ? `?status=${status}` : '';
-    return api.get(`/contacts${params}`);
+  async getAll(status, page = 1, limit = 100) {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    return api.get(`/contacts?${params.toString()}`);
   },
 
   async getById(contactId) {
@@ -33,11 +36,14 @@ export const contacts = {
   },
 
   // Search contacts with filters
-  async searchContacts(search, status = null, source = null) {
+  async searchContacts(search, statuses = [], sources = []) {
     return api.post('/contacts/search', {
       search,
-      status,
-      source
+      statuses: statuses.length > 0 ? statuses : undefined,
+      sources: sources.length > 0 ? sources : undefined,
+      // Backward compatibility
+      status: statuses.length === 1 ? statuses[0] : null,
+      source: sources.length === 1 ? sources[0] : null
     });
   },
 

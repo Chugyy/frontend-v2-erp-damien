@@ -133,6 +133,15 @@ export default function Dashboard() {
   }
 
   const getChartData = () => {
+    // Mapper les noms de métriques frontend vers backend
+    const metricMapping = {
+      'messages': 'total_contacts',
+      'responses': 'total_responses',
+      'appointments': 'total_appointments',
+      'response-rate': 'response_rate',
+      'shared-value': 'total_shared_value'
+    }
+
     if (selectedMetric === 'status-distribution') {
       // TODO: Récupérer depuis le backend
       return {
@@ -214,12 +223,6 @@ export default function Dashboard() {
     }
 
     // Utiliser les données KPI actuelles pour générer un graphique
-    const metricMapping = {
-      'messages': 'total_contacts',
-      'responses': 'total_responses',
-      'appointments': 'total_appointments',
-      'response-rate': 'response_rate'
-    }
     const currentMetric = kpiMetadata[metricMapping[selectedMetric] || selectedMetric]
     const currentKpi = kpiData.find(k => k.id === (metricMapping[selectedMetric] || selectedMetric))
     

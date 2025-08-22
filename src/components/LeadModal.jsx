@@ -166,7 +166,7 @@ export default function LeadModal({ open, onClose, initial, onSaved }) {
             <option value="relance_10">Relance 10</option>
             <option value="contacted">Contacté</option>
             <option value="replied">Répondu</option>
-            <option value="value_shared">Valeur Partagée</option>
+            <option value="shared_value">Valeur Partagée</option>
             <option value="meeting_scheduled">RDV Planifié</option>
             <option value="prospect">Prospect</option>
             <option value="client">Client</option>
