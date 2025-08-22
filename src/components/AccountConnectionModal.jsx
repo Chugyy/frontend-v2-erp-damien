@@ -78,6 +78,7 @@ export default function AccountConnectionModal({ open, onClose, platform, onConn
         return
       }
 
+
       // Handle checkpoint required (code 202 - authentication needed)
       if (data.checkpoint_required) {
         setCheckpointMode(true)

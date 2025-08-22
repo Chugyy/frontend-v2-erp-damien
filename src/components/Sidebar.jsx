@@ -29,7 +29,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   const navigationItems = isAdmin ? [
     { id: 'admin', label: 'Administration', icon: AdminIcon, path: '/admin' }
   ] : [
-    { id: 'dashboard', label: 'Dashboard', icon: DashboardIcon, path: '/' },
+    { id: 'dashboard', label: 'Dashboard', icon: DashboardIcon, path: '/dashboard' },
     { id: 'crm', label: 'CRM', icon: CrmIcon, path: '/crm' }
   ]
 
@@ -70,7 +70,7 @@ export default function Sidebar({ collapsed, onToggle }) {
               const IconComponent = item.icon
               return (
                 <li key={item.id}>
-                  <NavLink to={item.path} className={linkClass} end={item.path === '/'}>
+                  <NavLink to={item.path} className={linkClass}>
                     <span className="sidebar-nav-icon">
                       <IconComponent />
                     </span>

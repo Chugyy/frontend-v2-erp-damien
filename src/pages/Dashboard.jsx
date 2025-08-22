@@ -35,7 +35,6 @@ export default function Dashboard() {
     total_responses: { title: 'Réponses reçues', icon: 'reply', color: 'var(--green)', suffix: '' },
     total_appointments: { title: 'RDV programmés', icon: 'calendar-check', color: 'var(--purple)', suffix: '' },
     total_shared_value: { title: 'Valeur partagée', icon: 'dollar-sign', color: 'var(--emerald)', suffix: '' },
-    response_time: { title: 'Temps de réponse', icon: 'clock', color: 'var(--yellow)', suffix: 'h' },
     response_rate: { title: 'Taux de réponse', icon: 'percent', color: 'var(--indigo)', suffix: '%' },
     conversion_rate: { title: 'Taux de conversion', icon: 'pie-chart', color: 'var(--red)', suffix: '%' }
   }
@@ -48,7 +47,18 @@ export default function Dashboard() {
       )
       
       // Enrichir les KPIs avec les métadonnées frontend
-      const enrichedKpis = (data.kpis || []).map(kpi => {
+      const apiKpis = data.kpis || []
+      
+      // Si l'API ne retourne aucun KPI, utiliser les données par défaut
+      const kpisToProcess = apiKpis.length > 0 ? apiKpis : 
+        Object.entries(kpiMetadata).map(([id, meta]) => ({
+          id,
+          value: 0,
+          change: 0,
+          trend: 'neutral'
+        }))
+      
+      const enrichedKpis = kpisToProcess.map(kpi => {
         const meta = kpiMetadata[kpi.id] || {}
         
         // Arrondir les valeurs entières

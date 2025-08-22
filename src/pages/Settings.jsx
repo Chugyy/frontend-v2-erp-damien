@@ -286,6 +286,18 @@ export default function Settings() {
         
         <div className="add-account-section" style={{ marginTop: '30px' }}>
           <h3>Ajouter un compte</h3>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '12px', marginBottom: '12px'}}>
+            {availablePlatforms.map(platform => (
+              <Button
+                key={platform}
+                variant="secondary"
+                onClick={() => handleAddNewPlatform(platform)}
+              >
+                + {platform.charAt(0).toUpperCase() + platform.slice(1)}
+              </Button>
+            ))}
+          </div>
           
           {/* Instagram warning section */}
           <div className="instagram-warning" style={{
@@ -326,18 +338,6 @@ export default function Settings() {
                 allowFullScreen
               />
             </div>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-            {availablePlatforms.map(platform => (
-              <Button
-                key={platform}
-                variant="secondary"
-                onClick={() => handleAddNewPlatform(platform)}
-              >
-                + {platform.charAt(0).toUpperCase() + platform.slice(1)}
-              </Button>
-            ))}
           </div>
         </div>
       </div>
