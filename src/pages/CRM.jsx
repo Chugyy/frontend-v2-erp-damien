@@ -63,6 +63,7 @@ export default function CRM() {
   const [searchTimeout, setSearchTimeout] = useState(null)
   const [isSearching, setIsSearching] = useState(false)
   const [paginationCache, setPaginationCache] = useState(new Map())
+  const [searchCache, setSearchCache] = useState(new Map())
   const [filters, setFilters] = useState({
     statuses: [],
     sources: [],
@@ -172,29 +173,54 @@ export default function CRM() {
   }
 
 
+  const getSearchCacheKey = (searchTerm, statuses, sources) => {
+    return `search_${searchTerm}_status_${statuses.join(',')}_source_${sources.join(',')}`
+  }
+
+  const isCacheValidSearch = (timestamp) => {
+    return Date.now() - timestamp < 30000 // 30s TTL pour cache négatif
+  }
+
   // Effet simple : appliquer filtres ET faire recherche serveur si nécessaire
   useEffect(() => {
     // 1. Filtrage local d'abord
     const filtered = localFilter(allContacts, search, filters.statuses, filters.sources)
     setFilteredLeads(filtered)
     
-    // 2. Recherche serveur si nécessaire (terme > 2 caractères ET pas de résultats locaux)
-    const hasSearch = search.trim().length > 2
+    // 2. Recherche serveur UNIQUEMENT si :
+    //    - Terme de recherche > 2 caractères
+    //    - AUCUN résultat local trouvé
+    //    - Pas déjà en cache (succès ou échec)
+    const searchTerm = search.trim()
+    const hasSearch = searchTerm.length > 2
     const hasFilters = filters.statuses.length > 0 || filters.sources.length > 0
     
     if ((hasSearch || hasFilters) && filtered.length === 0) {
+      const cacheKey = getSearchCacheKey(searchTerm, filters.statuses, filters.sources)
+      const cached = searchCache.get(cacheKey)
+      
+      // Vérifier cache : si récent, ne pas relancer
+      if (cached && isCacheValidSearch(cached.timestamp)) {
+        return
+      }
+      
       if (searchTimeout) clearTimeout(searchTimeout)
       
       const timeoutId = setTimeout(async () => {
+        // Double vérification : le terme de recherche est-il toujours valide ?
+        if (search.trim() !== searchTerm || searchTerm.length < 3) {
+          return // Annuler si l'utilisateur a modifié ou vidé
+        }
+        
         setIsSearching(true)
         try {
-          const serverResults = await contactsApi.searchContacts(search, 
+          const serverResults = await contactsApi.searchContacts(searchTerm, 
             filters.statuses,
             filters.sources
           )
           
           if (serverResults.length > 0) {
-            // Ajouter nouveaux contacts au cache local
+            // Succès : ajouter nouveaux contacts au cache local
             setAllContacts(prev => {
               const existingIds = new Set(prev.map(c => c.contact_id))
               const newContacts = serverResults
@@ -202,13 +228,30 @@ export default function CRM() {
                 .map(transformContactForDisplay)
               return [...prev, ...newContacts]
             })
+            
+            // Cache succès
+            setSearchCache(prev => new Map([
+              ...prev,
+              [cacheKey, { results: serverResults, timestamp: Date.now(), success: true }]
+            ]))
+          } else {
+            // Échec : cache négatif pour éviter nouvelles requêtes
+            setSearchCache(prev => new Map([
+              ...prev, 
+              [cacheKey, { results: [], timestamp: Date.now(), success: false }]
+            ]))
           }
         } catch (error) {
           console.error('Erreur recherche serveur:', error)
+          // Cache échec réseau aussi
+          setSearchCache(prev => new Map([
+            ...prev,
+            [cacheKey, { results: [], timestamp: Date.now(), success: false, error: true }]
+          ]))
         } finally {
           setIsSearching(false)
         }
-      }, 1000)
+      }, 500) // Réduit à 500ms pour meilleure réactivité
       
       setSearchTimeout(timeoutId)
     }
@@ -216,7 +259,7 @@ export default function CRM() {
     return () => {
       if (searchTimeout) clearTimeout(searchTimeout)
     }
-  }, [search, filters.statuses, filters.sources, allContacts, localFilter])
+  }, [search, filters.statuses, filters.sources, allContacts, localFilter, searchCache])
 
   const handleSearch = (value) => {
     setSearch(value)
@@ -225,12 +268,19 @@ export default function CRM() {
     setHasMoreKanban(true)
     // Reset pagination et recharger depuis le serveur
     if (value.trim() === '') {
+      // Vider cache de recherche au reset
+      setSearchCache(new Map())
       loadContacts(1)
     }
   }
 
   const paginatedLeads = filteredLeads
   const totalPages = Math.ceil(totalContacts / itemsPerPage)
+  
+  // Contacts pour kanban : tous les contacts chargés avec filtres appliqués
+  const kanbanContacts = useMemo(() => {
+    return localFilter(allContacts, search, filters.statuses, filters.sources)
+  }, [allContacts, search, filters.statuses, filters.sources, localFilter])
 
   const handleSaveLead = async (leadData) => {
     try {
@@ -339,7 +389,7 @@ export default function CRM() {
       
       // Pour Kanban : vérifier s'il y a plus de résultats
       if (isKanbanLoad) {
-        setHasMoreKanban(transformedContacts.length === itemsPerPage)
+        setHasMoreKanban(transformedContacts.length === itemsPerPage && data.total > allContacts.length + transformedContacts.length)
       }
     } catch (error) {
       console.error('Erreur chargement contacts:', error)
@@ -602,19 +652,17 @@ export default function CRM() {
           </>
         ) : (
           <>
-            {hasMoreKanban && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-                <Button 
-                  variant="subtle" 
-                  onClick={loadMoreKanban}
-                  disabled={loading}
-                >
-                  Charger plus de résultats
-                </Button>
-              </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <Button 
+                variant="subtle" 
+                onClick={loadMoreKanban}
+                disabled={loading || !hasMoreKanban}
+              >
+                {hasMoreKanban ? 'Charger plus de résultats' : 'Tous les contacts ont été chargés'}
+              </Button>
+            </div>
             <Kanban 
-              items={filteredLeads} 
+              items={kanbanContacts} 
               onUpdate={handleKanbanUpdate}
               onEdit={handleKanbanEdit}
               onDelete={handleKanbanDelete}
