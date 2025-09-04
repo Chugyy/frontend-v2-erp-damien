@@ -88,7 +88,7 @@ function AccountCard({ account, onConnect, onDisconnect, onRefreshStatus, onDele
         <div className="account-actions">
           {isConnected ? (
             <Button variant="danger" onClick={() => onDisconnect(account.account_id)}>
-              Déconnecter
+              Supprimer
             </Button>
           ) : account.connection_status === 'disconnected' ? (
             <Button 
@@ -157,12 +157,16 @@ export default function Settings() {
   const handleDisconnect = async (accountId) => {
     if (!accountId) return // Ignore placeholder accounts
     
+    if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement ce compte ?')) {
+      return
+    }
+    
     try {
-      await api.post(`/accounts/${accountId}/disconnect`, {})
-      showSuccess('Compte déconnecté avec succès', { title: 'Déconnexion réussie' })
+      await api.delete(`/accounts/${accountId}`)
+      showSuccess('Compte supprimé avec succès', { title: 'Suppression réussie' })
       loadAccounts() // Refresh accounts list
     } catch (error) {
-      showError(error.message || 'Erreur lors de la déconnexion', { title: 'Erreur de déconnexion' })
+      showError(error.message || 'Erreur lors de la suppression', { title: 'Erreur de suppression' })
     }
   }
 

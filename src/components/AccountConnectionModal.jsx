@@ -22,6 +22,7 @@ export default function AccountConnectionModal({ open, onClose, platform, onConn
   const [notification, setNotification] = useState(null)
   const [checkpointData, setCheckpointData] = useState(null)
   const [polling, setPolling] = useState(false)
+  const [linkedInTwoFA, setLinkedInTwoFA] = useState('')
 
   const isLinkedIn = platform?.toLowerCase() === 'linkedin'
   const isInstagram = platform?.toLowerCase() === 'instagram'
@@ -217,6 +218,7 @@ export default function AccountConnectionModal({ open, onClose, platform, onConn
     setPolling(false)
     setIsLoading(false)
     setNotification(null)
+    setLinkedInTwoFA('')
     onClose()
   }
 
@@ -276,18 +278,110 @@ export default function AccountConnectionModal({ open, onClose, platform, onConn
       )}
       
       {!checkpointMode ? (
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            {isLinkedIn && (
-              <Input
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                placeholder="votre-email@exemple.com"
-                required
-              />
-            )}
+        <>
+          {isLinkedIn && !linkedInTwoFA ? (
+            <div className="linkedin-2fa-section">
+              <h3 style={{ marginBottom: '20px' }}>Configuration LinkedIn</h3>
+              <p style={{ marginBottom: '16px', fontSize: '14px', color: '#666' }}>
+                Avez-vous activé l'authentification à double facteur (A2F) sur votre compte LinkedIn ?
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="twoFA"
+                    value="yes"
+                    checked={linkedInTwoFA === 'yes'}
+                    onChange={(e) => setLinkedInTwoFA(e.target.value)}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Oui, j'ai l'A2F activée
+                </label>
+                
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="twoFA"
+                    value="no"
+                    checked={linkedInTwoFA === 'no'}
+                    onChange={(e) => setLinkedInTwoFA(e.target.value)}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Non, je n'ai pas l'A2F
+                </label>
+                
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="twoFA"
+                    value="unknown"
+                    checked={linkedInTwoFA === 'unknown'}
+                    onChange={(e) => setLinkedInTwoFA(e.target.value)}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Je ne sais pas
+                </label>
+              </div>
+            </div>
+          ) : isLinkedIn && linkedInTwoFA && linkedInTwoFA !== 'no' ? (
+            <div style={{ 
+              padding: '16px', 
+              backgroundColor: '#f8f9fa', 
+              borderRadius: '8px',
+              border: '1px solid #dee2e6'
+            }}>
+              {linkedInTwoFA === 'unknown' && (
+                <p style={{ marginBottom: '12px', fontSize: '13px', color: '#666' }}>
+                  💡 Pour vérifier si vous avez l'A2F : connectez-vous sur LinkedIn. Si on vous demande un code par SMS ou d'une app d'authentification, alors vous avez l'A2F.
+                </p>
+              )}
+              
+              <p style={{ marginBottom: '12px', fontSize: '14px', fontWeight: '500' }}>
+                🔗 Intégration spéciale requise (moins de 5 minutes)
+              </p>
+              
+              <div style={{ 
+                position: 'relative', 
+                paddingBottom: '56.25%', 
+                height: 0, 
+                overflow: 'hidden',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}>
+                <iframe
+                  src="https://calendly.com/hugo-hoarau/30min?hide_event_type_details=1&hide_gdpr_banner=1"
+                  title="Planifier intégration LinkedIn"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                  }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+              
+              <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+                Prenez rendez-vous pour configurer l'intégration LinkedIn avec A2F
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                {isLinkedIn && (
+                  <Input
+                    label="Email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    placeholder="votre-email@exemple.com"
+                    required
+                  />
+                )}
             
             {isInstagram && (
               <Input
@@ -322,19 +416,37 @@ export default function AccountConnectionModal({ open, onClose, platform, onConn
             </div>
           )}
 
-          <div className="modal-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
-            <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
-              Annuler
-            </Button>
-            <Button 
-              type="submit" 
-              variant="primary" 
-              disabled={isLoading}
-            >
-              {isLoading ? 'Connexion...' : 'Se connecter'}
-            </Button>
-          </div>
-        </form>
+              <div className="modal-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
+                  Annuler
+                </Button>
+                <Button 
+                  type="submit" 
+                  variant="primary" 
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Connexion...' : 'Se connecter'}
+                </Button>
+              </div>
+            </form>
+          )}
+          
+          {isLinkedIn && linkedInTwoFA && linkedInTwoFA !== 'no' && (
+            <div className="modal-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <Button variant="secondary" onClick={handleClose}>
+                Annuler
+              </Button>
+            </div>
+          )}
+          
+          {isLinkedIn && !linkedInTwoFA && (
+            <div className="modal-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <Button variant="secondary" onClick={handleClose}>
+                Annuler
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         <form onSubmit={handleCheckpointSubmit}>
           <div className="checkpoint-info" style={{ marginBottom: '20px' }}>
