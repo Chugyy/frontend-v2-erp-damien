@@ -73,7 +73,10 @@ export default function AccountConnectionModal({ open, onClose, platform, onConn
 
       // Handle successful connection (code 201 - immediate success)
       if (data.success && !data.checkpoint_required) {
-        showNotification('success', data.success_message || 'Connexion réussie !', 'Succès')
+        const message = data.connection_status === 'connecting' 
+          ? (data.success_message || 'Compte en cours de connexion')
+          : (data.success_message || 'Connexion réussie !')
+        showNotification('success', message, 'Succès')
         onConnect && onConnect(data)
         handleClose()
         return
