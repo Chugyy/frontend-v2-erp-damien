@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { useTheme } from './hooks/useTheme'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminProtectedRoute from './components/AdminProtectedRoute'
@@ -9,7 +9,6 @@ import CRM from './pages/CRM'
 import Settings from './pages/Settings'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminUserKPIs from './pages/AdminUserKPIs'
-import NotFound from './pages/NotFound'
 import './App.css'
 
 export default function App() {
@@ -52,7 +51,7 @@ export default function App() {
       } />
       
       {/* Route fallback */}
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
